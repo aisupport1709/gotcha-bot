@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Gotcha Bot!</title>
+<meta name="description" content="Trap the AI that learns. A puzzle game where you place hidden traps to stop a pathfinding AI.">
+<meta name="theme-color" content="#101418">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
+<style>
+  :root{
+    --bg:#101418; --panel:#171D24; --cell-a:#1A2129; --cell-b:#161C23;
+    --wall:#313C49; --wall-edge:#465464;
+    --trap:#FF5C5C; --sense:#FFB020; --mem:#5A6572;
+    --goal:#58C472; --start:#38B2A3; --ai:#8B7CF6; --ai-dark:#5F4FD1;
+    --text:#E8ECF1; --muted:#8A93A0; --line:#232B34;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  html,body{margin:0; padding:0; background:var(--bg); color:var(--text);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
+    height:100%; overscroll-behavior:none}
+  body{display:flex; flex-direction:column; align-items:center; min-height:100dvh}
+  .wrap{width:100%; max-width:460px; padding:12px 12px calc(12px + env(safe-area-inset-bottom));
+    display:flex; flex-direction:column; gap:10px; min-height:100dvh}
+  header{display:flex; align-items:center; justify-content:space-between; gap:8px}
+  h1{font-size:20px; font-weight:800; margin:0; letter-spacing:.3px}
+  h1 .bang{color:var(--ai)}
+  .langs{display:flex; gap:4px; background:var(--panel); border-radius:999px; padding:3px}
+  .langs button{border:0; background:transparent; color:var(--muted); font-family:inherit;
+    font-size:12px; font-weight:700; padding:5px 10px; border-radius:999px; cursor:pointer}
+  .langs button.on{background:var(--ai); color:#fff}
+  .sub{display:flex; justify-content:space-between; align-items:baseline; margin-top:-4px}
+  .tagline{font-size:12.5px; color:var(--muted)}
+  .best{font-size:12px; color:var(--muted)}
+  .best b{color:var(--text)}
+  .stats{display:grid; grid-template-columns:repeat(4,1fr); gap:6px}
+  .stat{background:var(--panel); border-radius:10px; padding:6px 8px; text-align:center}
+  .stat .k{font-size:10px; color:var(--muted)}
+  .stat .v{font-size:17px; font-weight:700; margin-top:1px}
+  #board{width:100%; border-radius:14px; border:1px solid var(--line);
+    touch-action:none; display:block; background:var(--panel)}
+  .msg{background:var(--panel); border-radius:10px; padding:9px 12px; font-size:13.5px;
+    color:var(--text); min-height:40px; display:flex; align-items:center; gap:8px; line-height:1.45}
+  .msg .dot{flex:0 0 10px; width:10px; height:10px; border-radius:50%; background:var(--ai)}
+  .btns{display:flex; gap:8px; margin-top:auto}
+  .btns button{flex:1; border:0; border-radius:12px; padding:14px 10px; font-size:15px; font-weight:700;
+    font-family:inherit; color:var(--text); background:var(--panel); cursor:pointer;
+    transition:transform .05s ease, opacity .2s}
+  .btns button:active{transform:scale(.97)}
+  .btns button.primary{background:var(--ai); color:#fff}
+  .btns button:disabled{opacity:.4; pointer-events:none}
+  .hint{font-size:11.5px; color:var(--muted); text-align:center; line-height:1.5}
+  @media (prefers-reduced-motion:reduce){ *{transition:none!important} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="brand"></h1>
+    <div class="langs" id="langs">
+      <button data-lang="vi">VI</button>
+      <button data-lang="en">EN</button>
+      <button data-lang="zh">中文</button>
+    </div>
+  </header>
+  <div class="sub">
+    <span class="tagline" id="tagline"></span>
+    <span class="best"><span id="bestLabel"></span> <b id="best">0</b></span>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="k" id="kRound"></div><div class="v" id="rd">1</div></div>
+    <div class="stat"><div class="k" id="kTraps"></div><div class="v" id="tp">4</div></div>
+    <div class="stat"><div class="k" id="kSense"></div><div class="v" id="iq">0%</div></div>
+    <div class="stat"><div class="k" id="kSpeed"></div><div class="v" id="sp">x1.0</div></div>
+  </div>
+
+  <canvas id="board"></canvas>
+
+  <div class="msg"><span class="dot"></span><span id="msg"></span></div>
+
+  <div class="hint" id="hint"></div>
+
+  <div class="btns">
+    <button id="runBtn" class="primary"></button>
+    <button id="newBtn"></button>
+  </div>
+</div>
+
+<script>
+(function(){
+  'use strict';
+  var BRAND = 'Gotcha Bot';
+
+  var I18N = {
+    vi: {
+      tagline: 'Đặt bẫy chặn con AI biết học',
+      bestLabel: 'Kỷ lục:',
+      kRound: 'Vòng', kTraps: 'Bẫy còn', kSense: 'Giác quan', kSpeed: 'Tốc độ',
+      run: 'Thả AI đi', newGame: 'Ván mới',
+      hint: 'Ô đá xám = tường (ngẫu nhiên mỗi ván) · Dấu X = ô AI đã "thuộc" · Chạm lại bẫy đỏ để gỡ',
+      welcome: 'Bản đồ mới! Chạm ô trống để đặt bẫy — AI không nhìn thấy bẫy. Xong thì bấm "Thả AI đi".',
+      running: 'AI xuất phát! Bạn vẫn đặt thêm bẫy được khi nó đang chạy.',
+      memCell: 'AI đã "thuộc" ô này — đặt bẫy ở đó là vô ích.',
+      noTraps: 'Hết bẫy! Sống sót qua vòng này để nhận thêm 2 cái.',
+      died: function(r){ return ' (Vòng '+r+': nhanh hơn, thính hơn. +2 bẫy cho bạn)'; },
+      overNewBest: function(k){ return 'AI về đích! Nhưng bạn vừa lập kỷ lục mới: cầm cự '+k+' vòng. Bấm "Ván mới" để phá tiếp.'; },
+      over: function(r){ return 'AI về đích sau '+r+' vòng — nó khôn hơn bạn rồi. Bấm "Ván mới" để phục thù.'; },
+      cellStart: 'ĐI', cellGoal: 'ĐÍCH',
+      ovTitle: 'AI đã thắng!',
+      ovSub: function(k,b){ return 'Bạn cầm cự được '+k+' vòng · Kỷ lục: '+b; },
+      dieMsgs: [
+        'Á! Được lắm... tôi sẽ nhớ chỗ này.',
+        'Đau đấy. Nhưng giờ tôi biết nó ở đâu rồi.',
+        'Trúng bẫy! Bản đồ trong đầu tôi vừa được cập nhật.',
+        'Cùng một chỗ tôi không chết hai lần đâu.',
+        'Hự! Ghi chú: tránh xa ô đó ra.'
+      ],
+      senseMsgs: [
+        'Khoan... tôi ngửi thấy mùi bẫy phía trước. Đi vòng!',
+        'Ô này khả nghi. Né.',
+        'Bạn tưởng giấu được tôi à? Thấy rồi nhé.',
+        'Giác quan mách bảo: đừng bước vào đó.'
+      ]
+    },
+    en: {
+      tagline: 'Trap the AI that learns',
+      bestLabel: 'Best:',
+      kRound: 'Round', kTraps: 'Traps', kSense: 'Senses', kSpeed: 'Speed',
+      run: 'Release the AI', newGame: 'New game',
+      hint: 'Gray stones = walls (random each game) · X = cells the AI memorized · Tap a red trap to remove it',
+      welcome: 'New map! Tap empty cells to place traps — the AI can\'t see them. Then hit "Release the AI".',
+      running: 'The AI is on the move! You can still drop traps while it runs.',
+      memCell: 'The AI memorized this cell — trapping it again is pointless.',
+      noTraps: 'Out of traps! Survive this round to earn 2 more.',
+      died: function(r){ return ' (Round '+r+': faster, sharper. +2 traps for you)'; },
+      overNewBest: function(k){ return 'The AI made it! But that\'s a new personal best: '+k+' rounds. Hit "New game" to beat it.'; },
+      over: function(r){ return 'The AI reached the goal after '+r+' rounds — it officially outsmarted you. Hit "New game" for revenge.'; },
+      cellStart: 'GO', cellGoal: 'GOAL',
+      ovTitle: 'The AI wins!',
+      ovSub: function(k,b){ return 'You held out for '+k+' rounds · Best: '+b; },
+      dieMsgs: [
+        'Ouch! Fine... I\'ll remember this spot.',
+        'That hurt. But now I know where it is.',
+        'Trapped! Mental map updated.',
+        'I never die in the same place twice.',
+        'Oof! Note to self: avoid that cell.'
+      ],
+      senseMsgs: [
+        'Wait... I smell a trap ahead. Going around!',
+        'This cell looks suspicious. Nope.',
+        'You thought you could hide that from me?',
+        'My senses say: do not step there.'
+      ]
+    },
+    zh: {
+      tagline: '设下陷阱，困住会学习的AI',
+      bestLabel: '纪录：',
+      kRound: '回合', kTraps: '陷阱', kSense: '感知', kSpeed: '速度',
+      run: '放AI出发', newGame: '新的一局',
+      hint: '灰色石块 = 墙（每局随机生成）· X = AI已记住的格子 · 点击红色陷阱可移除',
+      welcome: '新地图！点击空格放置陷阱——AI看不见陷阱。然后按"放AI出发"。',
+      running: 'AI出发了！它移动时你仍然可以放陷阱。',
+      memCell: 'AI已经记住了这个格子——再放陷阱没有用。',
+      noTraps: '陷阱用完了！撑过这一回合可以再得2个。',
+      died: function(r){ return '（第'+r+'回合：更快、更敏锐。你获得2个陷阱）'; },
+      overNewBest: function(k){ return 'AI到达终点了！不过你刷新了纪录：坚持了'+k+'回合。按"新的一局"继续挑战。'; },
+      over: function(r){ return 'AI在第'+r+'回合到达终点——它比你聪明了。按"新的一局"报仇吧。'; },
+      cellStart: '出发', cellGoal: '终点',
+      ovTitle: 'AI获胜！',
+      ovSub: function(k,b){ return '你坚持了'+k+'回合 · 纪录：'+b; },
+      dieMsgs: [
+        '啊！好吧……我会记住这个地方。',
+        '好痛。不过现在我知道它在哪了。',
+        '中招了！脑内地图已更新。',
+        '同一个地方我不会死第二次。',
+        '呃！笔记：远离那个格子。'
+      ],
+      senseMsgs: [
+        '等等……前面有陷阱的味道。绕路！',
+        '这个格子很可疑。躲开。',
+        '你以为能瞒过我吗？看到了。',
+        '直觉告诉我：别踩那里。'
+      ]
+    }
+  };
+
+  var lang = 'en';
+  try { lang = localStorage.getItem('gb_lang') || ''; } catch(e){}
+  if(!I18N[lang]){
+    var nav = (navigator.language||'en').toLowerCase();
+    lang = nav.indexOf('vi')===0 ? 'vi' : (nav.indexOf('zh')===0 ? 'zh' : 'en');
+  }
+  var T = I18N[lang];
+
+  var COLS = 9, ROWS = 13;
+  var START = {x:4, y:0}, GOAL = {x:4, y:ROWS-1};
+  var cv = document.getElementById('board'), ctx = cv.getContext('2d');
+  var msgEl = document.getElementById('msg');
+  var rdEl = document.getElementById('rd'), tpEl = document.getElementById('tp');
+  var iqEl = document.getElementById('iq'), spEl = document.getElementById('sp');
+  var bestEl = document.getElementById('best');
+  var runBtn = document.getElementById('runBtn'), newBtn = document.getElementById('newBtn');
+
+  var msgKey = 'welcome', msgArgs = null;
+  function say(key, args){
+    msgKey = key; msgArgs = args || null;
+    var v = T[key];
+    msgEl.textContent = (typeof v === 'function') ? v.apply(null, msgArgs) : (v !== undefined ? v : key);
+  }
+  function sayRaw(text){ msgKey = null; msgEl.textContent = text; }
+
+  function applyLang(){
+    T = I18N[lang];
+    document.documentElement.lang = lang;
+    document.getElementById('brand').innerHTML = BRAND + '<span class="bang">!</span>';
+    document.title = BRAND + '!';
+    document.getElementById('tagline').textContent = T.tagline;
+    document.getElementById('bestLabel').textContent = T.bestLabel;
+    document.getElementById('kRound').textContent = T.kRound;
+    document.getElementById('kTraps').textContent = T.kTraps;
+    document.getElementById('kSense').textContent = T.kSense;
+    document.getElementById('kSpeed').textContent = T.kSpeed;
+    runBtn.textContent = T.run;
+    newBtn.textContent = T.newGame;
+    document.getElementById('hint').textContent = T.hint;
+    var btns = document.querySelectorAll('#langs button');
+    for(var i=0;i<btns.length;i++) btns[i].className = btns[i].getAttribute('data-lang')===lang ? 'on' : '';
+    if(msgKey) say(msgKey, msgArgs);
+  }
+  document.getElementById('langs').addEventListener('click', function(e){
+    var b = e.target.closest('button'); if(!b) return;
+    lang = b.getAttribute('data-lang');
+    try{ localStorage.setItem('gb_lang', lang); }catch(err){}
+    applyLang();
+  });
+
+  var C = {};
+  (function(){
+    var s = getComputedStyle(document.documentElement);
+    ['cell-a','cell-b','wall','wall-edge','trap','sense','mem','goal','start','ai','ai-dark','text','muted','line']
+      .forEach(function(n){ C[n] = s.getPropertyValue('--'+n).trim(); });
+  })();
+
+  var CS = 44, DPR = Math.max(1, Math.min(2, window.devicePixelRatio||1));
+  function fit(){
+    var w = Math.min(cv.parentElement.clientWidth, 460 - 24);
+    CS = Math.floor(w / COLS);
+    var pw = CS*COLS, ph = CS*ROWS;
+    cv.width = pw*DPR; cv.height = ph*DPR;
+    cv.style.width = pw+'px'; cv.style.height = ph+'px';
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+  }
+  window.addEventListener('resize', fit);
+
+  var K = function(x,y){ return x+','+y; };
+  var phase, round, trapsLeft, traps, memory, sensed, walls, ai, path, pathIdx, anim, stepTimer, over, deadFx, kills;
+  var best = 0;
+  try { best = parseInt(localStorage.getItem('gb_best')||localStorage.getItem('datbay_best')||'0', 10) || 0; } catch(e){}
+  bestEl.textContent = best;
+
+  function senseChance(){ return Math.min(0.12*(round-1), 0.85); }
+  function stepMs(){ return Math.max(95, 300*Math.pow(0.92, round-1)); }
+  function updHud(){
+    rdEl.textContent = round; tpEl.textContent = trapsLeft;
+    iqEl.textContent = Math.round(senseChance()*100)+'%';
+    spEl.textContent = 'x'+(300/stepMs()).toFixed(1);
+  }
+  function shuffle(a){
+    for(var i=a.length-1;i>0;i--){ var j=(Math.random()*(i+1))|0, t=a[i]; a[i]=a[j]; a[j]=t; }
+    return a;
+  }
+
+  function bfs(fromX, fromY, blocked){
+    var q=[[fromX,fromY]], prev={}, seen={};
+    seen[K(fromX,fromY)] = true;
+    while(q.length){
+      var cur=q.shift(), x=cur[0], y=cur[1];
+      if(x===GOAL.x && y===GOAL.y){
+        var p=[], k=K(x,y);
+        while(k !== undefined){
+          var xy=k.split(','); p.unshift({x:+xy[0], y:+xy[1]}); k=prev[k];
+        }
+        return p;
+      }
+      var dirs = shuffle([[1,0],[-1,0],[0,1],[0,-1]]);
+      for(var i=0;i<4;i++){
+        var nx=x+dirs[i][0], ny=y+dirs[i][1], k2=K(nx,ny);
+        if(nx<0||ny<0||nx>=COLS||ny>=ROWS) continue;
+        if(seen[k2] || walls[k2] || blocked[k2]) continue;
+        seen[k2]=true; prev[k2]=K(x,y); q.push([nx,ny]);
+      }
+    }
+    return null;
+  }
+
+  function genWalls(){
+    for(var attempt=0; attempt<300; attempt++){
+      walls = {};
+      var target = 14 + ((Math.random()*5)|0);
+      var placed = 0, guard = 0;
+      while(placed < target && guard < 600){
+        guard++;
+        var x = (Math.random()*COLS)|0, y = 1 + ((Math.random()*(ROWS-2))|0);
+        var len = Math.random()<0.45 ? 2 + ((Math.random()*2)|0) : 1;
+        var horiz = Math.random()<0.5;
+        for(var i=0;i<len;i++){
+          var wx = horiz? x+i : x, wy = horiz? y : y+i;
+          if(wx<0||wy<1||wx>=COLS||wy>=ROWS-1) continue;
+          if((wx===START.x&&wy===START.y)||(wx===GOAL.x&&wy===GOAL.y)) continue;
+          if(!walls[K(wx,wy)]){ walls[K(wx,wy)]=true; placed++; }
+        }
+      }
+      if(bfs(START.x, START.y, {})) return;
+    }
+    walls = {};
+  }
+
+  function merge(a,b){ var o={},k; for(k in a)o[k]=1; for(k in b)o[k]=1; return o; }
+  function plan(){
+    return bfs(ai.x, ai.y, merge(memory, sensed))
+        || bfs(ai.x, ai.y, sensed)
+        || bfs(ai.x, ai.y, {});
+  }
+
+  function newGame(){
+    phase='place'; round=1; trapsLeft=4; kills=0;
+    traps={}; memory={}; sensed={};
+    ai={x:START.x, y:START.y, px:START.x, py:START.y};
+    path=null; pathIdx=0; anim=null; over=false; deadFx=null;
+    clearTimeout(stepTimer);
+    genWalls();
+    runBtn.disabled=false;
+    say('welcome');
+    updHud();
+  }
+
+  function startRun(){
+    if(phase!=='place') return;
+    phase='run'; runBtn.disabled=true;
+    path = plan(); pathIdx = 0;
+    say('running');
+    stepTimer = setTimeout(step, 60);
+  }
+
+  function step(){
+    if(phase!=='run') return;
+    if(!path || pathIdx>=path.length-1){ gameOver(); return; }
+    var next = path[pathIdx+1], nk = K(next.x, next.y);
+    if(traps[nk] && !sensed[nk] && Math.random()<senseChance()){
+      sensed[nk]=true;
+      sayRaw(T.senseMsgs[(Math.random()*T.senseMsgs.length)|0]);
+      var np = plan();
+      if(np){ path=np; pathIdx=0; }
+      stepTimer = setTimeout(step, stepMs());
+      return;
+    }
+    anim = {fx:ai.x, fy:ai.y, tx:next.x, ty:next.y, t0:performance.now(), dur:stepMs()};
+  }
+
+  function arrive(){
+    ai.x=anim.tx; ai.y=anim.ty; ai.px=ai.x; ai.py=ai.y; anim=null;
+    var k = K(ai.x, ai.y);
+    if(traps[k]){
+      delete traps[k]; memory[k]=true;
+      deadFx = {x:ai.x, y:ai.y, t0:performance.now()};
+      if(navigator.vibrate) navigator.vibrate(60);
+      kills++; round++; trapsLeft+=2; updHud();
+      sayRaw(T.dieMsgs[(Math.random()*T.dieMsgs.length)|0] + T.died(round));
+      phase='place'; runBtn.disabled=false;
+      ai={x:START.x, y:START.y, px:START.x, py:START.y};
+      return;
+    }
+    pathIdx++;
+    stepTimer = setTimeout(step, 10);
+  }
+
+  function gameOver(){
+    phase='over'; over=true; clearTimeout(stepTimer); runBtn.disabled=true;
+    if(kills>best){
+      best=kills; bestEl.textContent=best;
+      try{ localStorage.setItem('gb_best', String(best)); }catch(e){}
+      say('overNewBest', [kills]);
+    } else {
+      say('over', [round]);
+    }
+    if(navigator.vibrate) navigator.vibrate([80,60,80]);
+  }
+
+  cv.addEventListener('pointerdown', function(e){
+    e.preventDefault();
+    if(phase==='over') return;
+    var r = cv.getBoundingClientRect();
+    var x = ((e.clientX-r.left)/CS)|0, y = ((e.clientY-r.top)/CS)|0;
+    if(x<0||y<0||x>=COLS||y>=ROWS) return;
+    var k = K(x,y);
+    if(walls[k]) return;
+    if((x===START.x&&y===START.y)||(x===GOAL.x&&y===GOAL.y)) return;
+    if(phase==='run' && Math.abs(x-ai.px)<0.8 && Math.abs(y-ai.py)<0.8) return;
+    if(traps[k]){
+      if(phase==='place' && !sensed[k]){ delete traps[k]; trapsLeft++; updHud(); }
+      return;
+    }
+    if(memory[k]){ say('memCell'); return; }
+    if(trapsLeft<=0){ say('noTraps'); return; }
+    traps[k]=true; trapsLeft--; updHud();
+  });
+
+  runBtn.addEventListener('click', startRun);
+  newBtn.addEventListener('click', newGame);
+
+  function roundRect(x,y,w,h,r){
+    ctx.beginPath();
+    ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+  }
+
+  function draw(now){
+    ctx.clearRect(0,0,CS*COLS,CS*ROWS);
+    var x,y,k;
+    for(y=0;y<ROWS;y++) for(x=0;x<COLS;x++){
+      ctx.fillStyle = (x+y)%2 ? C['cell-a'] : C['cell-b'];
+      ctx.fillRect(x*CS, y*CS, CS, CS);
+    }
+    for(k in walls){
+      var w=k.split(','); x=+w[0]; y=+w[1];
+      ctx.fillStyle = C['wall'];
+      roundRect(x*CS+2, y*CS+2, CS-4, CS-4, 5); ctx.fill();
+      ctx.strokeStyle = C['wall-edge']; ctx.lineWidth=1;
+      ctx.beginPath();
+      ctx.moveTo(x*CS+6, y*CS+CS*0.4); ctx.lineTo(x*CS+CS-6, y*CS+CS*0.4);
+      ctx.moveTo(x*CS+CS*0.45, y*CS+CS*0.4); ctx.lineTo(x*CS+CS*0.45, y*CS+CS-4);
+      ctx.stroke();
+    }
+    ctx.fillStyle = C['start'];
+    roundRect(START.x*CS+3, START.y*CS+3, CS-6, CS-6, 6); ctx.fill();
+    ctx.fillStyle = C['goal'];
+    roundRect(GOAL.x*CS+3, GOAL.y*CS+3, CS-6, CS-6, 6); ctx.fill();
+    ctx.fillStyle = '#08130D';
+    var fs = lang==='zh' ? CS*0.3 : CS*0.24;
+    ctx.font = '700 '+Math.max(10, fs)+'px system-ui';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(T.cellStart, START.x*CS+CS/2, START.y*CS+CS/2);
+    ctx.fillText(T.cellGoal, GOAL.x*CS+CS/2, GOAL.y*CS+CS/2);
+
+    ctx.lineWidth = 2.5; ctx.strokeStyle = C['mem'];
+    for(k in memory){
+      var m=k.split(','); x=+m[0]; y=+m[1];
+      var p = CS*0.3;
+      ctx.beginPath();
+      ctx.moveTo(x*CS+p, y*CS+p); ctx.lineTo(x*CS+CS-p, y*CS+CS-p);
+      ctx.moveTo(x*CS+CS-p, y*CS+p); ctx.lineTo(x*CS+p, y*CS+CS-p);
+      ctx.stroke();
+    }
+    for(k in traps){
+      var t=k.split(','); x=+t[0]; y=+t[1];
+      var s = sensed[k];
+      ctx.fillStyle = s ? C['sense'] : C['trap'];
+      ctx.beginPath(); ctx.arc(x*CS+CS/2, y*CS+CS/2, CS*0.2, 0, 7); ctx.fill();
+      if(s){
+        ctx.fillStyle='#3A2A00';
+        ctx.font='700 '+Math.max(10,CS*0.28)+'px system-ui';
+        ctx.fillText('!', x*CS+CS/2, y*CS+CS/2+1);
+      } else {
+        ctx.strokeStyle = C['trap']; ctx.lineWidth=1;
+        ctx.beginPath(); ctx.arc(x*CS+CS/2, y*CS+CS/2, CS*0.3, 0, 7); ctx.stroke();
+      }
+    }
+
+    if(anim){
+      var tt = Math.min(1, (now-anim.t0)/anim.dur);
+      ai.px = anim.fx + (anim.tx-anim.fx)*tt;
+      ai.py = anim.fy + (anim.ty-anim.fy)*tt;
+      if(tt>=1) arrive();
+    }
+    var X = ai.px*CS+CS/2, Y = ai.py*CS+CS/2, R = CS*0.3;
+    ctx.fillStyle = C['ai'];
+    ctx.beginPath(); ctx.arc(X, Y, R, 0, 7); ctx.fill();
+    ctx.fillStyle = C['ai-dark'];
+    ctx.beginPath();
+    ctx.arc(X-R*0.38, Y-R*0.2, R*0.18, 0, 7);
+    ctx.arc(X+R*0.38, Y-R*0.2, R*0.18, 0, 7);
+    ctx.fill();
+    ctx.strokeStyle = C['ai-dark']; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.arc(X, Y+R*0.25, R*0.36, 0.25, Math.PI-0.25); ctx.stroke();
+
+    if(deadFx){
+      var dt = (now-deadFx.t0)/500;
+      if(dt<1){
+        ctx.strokeStyle = C['trap']; ctx.lineWidth=3; ctx.globalAlpha = 1-dt;
+        ctx.beginPath();
+        ctx.arc(deadFx.x*CS+CS/2, deadFx.y*CS+CS/2, CS*0.2 + dt*CS*0.6, 0, 7);
+        ctx.stroke(); ctx.globalAlpha=1;
+      } else deadFx=null;
+    }
+
+    if(over){
+      ctx.fillStyle='rgba(6,8,11,0.72)';
+      ctx.fillRect(0,0,CS*COLS,CS*ROWS);
+      ctx.fillStyle=C['text'];
+      ctx.font='700 '+Math.max(20,CS*0.55)+'px system-ui';
+      ctx.fillText(T.ovTitle, CS*COLS/2, CS*ROWS/2 - CS*0.5);
+      ctx.font='400 '+Math.max(13,CS*0.34)+'px system-ui';
+      ctx.fillStyle=C['muted'];
+      ctx.fillText(T.ovSub(kills, best), CS*COLS/2, CS*ROWS/2 + CS*0.3);
+    }
+    requestAnimationFrame(draw);
+  }
+
+  applyLang();
+  fit();
+  newGame();
+  requestAnimationFrame(draw);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,53 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1B2130"/>
+      <stop offset="100%" stop-color="#0E1116"/>
+    </linearGradient>
+    <linearGradient id="bot" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#9C8CFF"/>
+      <stop offset="100%" stop-color="#6F5CE0"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="42%" r="65%">
+      <stop offset="0%" stop-color="#FF5C5C" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#FF5C5C" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <rect width="512" height="512" rx="112" fill="url(#glow)"/>
+
+  <!-- floor tiles -->
+  <g opacity="0.5">
+    <rect x="56" y="368" width="400" height="64" rx="14" fill="#1A2129"/>
+    <rect x="56" y="368" width="100" height="64" rx="14" fill="#232B34"/>
+    <rect x="256" y="368" width="100" height="64" rx="14" fill="#232B34"/>
+  </g>
+
+  <!-- trap (red circle with ring), bottom-left -->
+  <circle cx="142" cy="400" r="26" fill="#FF5C5C"/>
+  <circle cx="142" cy="400" r="38" fill="none" stroke="#FF5C5C" stroke-width="5" opacity="0.6"/>
+
+  <!-- goal marker, bottom-right -->
+  <rect x="322" y="374" width="52" height="52" rx="12" fill="#58C472"/>
+
+  <!-- AI bot body -->
+  <g>
+    <circle cx="256" cy="230" r="132" fill="url(#bot)"/>
+    <!-- antenna -->
+    <circle cx="256" cy="72" r="14" fill="#FFB020"/>
+    <rect x="249" y="82" width="14" height="36" rx="7" fill="#6F5CE0"/>
+    <!-- eyes -->
+    <circle cx="207" cy="216" r="20" fill="#2A2140"/>
+    <circle cx="305" cy="216" r="20" fill="#2A2140"/>
+    <circle cx="213" cy="209" r="7" fill="#fff"/>
+    <circle cx="311" cy="209" r="7" fill="#fff"/>
+    <!-- sly smile -->
+    <path d="M198 276 Q256 316 314 276" stroke="#2A2140" stroke-width="14" fill="none" stroke-linecap="round"/>
+  </g>
+
+  <!-- little spark/gotcha mark top-right -->
+  <g transform="translate(368,120)">
+    <path d="M0 -30 L9 -9 L30 0 L9 9 L0 30 L-9 9 L-30 0 L-9 -9 Z" fill="#FFB020"/>
+  </g>
+</svg>
