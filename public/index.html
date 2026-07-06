@@ -103,11 +103,14 @@
     if(e.touches && e.touches.length > 1) e.preventDefault();
   }, {passive:false});
   document.addEventListener('gesturestart', function(e){ e.preventDefault(); });
-  // Double-tap-zoom prevention, scoped to skip interactive elements (button/canvas)
-  // so it can't swallow the second tap of a legitimate quick re-tap on a control.
+  // Double-tap-zoom prevention, scoped to skip <button> only: board taps are
+  // driven by pointerdown (not click), so preventing the touchend default
+  // there is safe and closes the gap on the game's most-tapped surface.
+  // Buttons rely on the synthesized click from touchend, so they're excluded
+  // to avoid swallowing a legitimate quick re-tap on a control.
   var lastTouchEnd = 0;
   document.addEventListener('touchend', function(e){
-    if(e.target.closest('button, canvas')) return;
+    if(e.target.closest('button')) return;
     var now = Date.now();
     if(now - lastTouchEnd <= 300) e.preventDefault();
     lastTouchEnd = now;
