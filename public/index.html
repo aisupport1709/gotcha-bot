@@ -97,12 +97,21 @@
 (function(){
   'use strict';
 
-  // Belt-and-suspenders pinch-zoom blocker: the viewport meta and touch-action
-  // CSS aren't honored for zoom gestures on every browser.
+  // Belt-and-suspenders zoom blocker: the viewport meta and touch-action CSS
+  // aren't honored for zoom gestures on every browser.
   document.addEventListener('touchmove', function(e){
     if(e.touches && e.touches.length > 1) e.preventDefault();
   }, {passive:false});
   document.addEventListener('gesturestart', function(e){ e.preventDefault(); });
+  // Double-tap-zoom prevention, scoped to skip interactive elements (button/canvas)
+  // so it can't swallow the second tap of a legitimate quick re-tap on a control.
+  var lastTouchEnd = 0;
+  document.addEventListener('touchend', function(e){
+    if(e.target.closest('button, canvas')) return;
+    var now = Date.now();
+    if(now - lastTouchEnd <= 300) e.preventDefault();
+    lastTouchEnd = now;
+  }, {passive:false});
 
   var BRAND = 'Gotcha Bot';
 
