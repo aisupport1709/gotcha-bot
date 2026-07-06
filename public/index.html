@@ -19,10 +19,10 @@
     --goal:#58C472; --start:#38B2A3; --ai:#8B7CF6; --ai-dark:#5F4FD1;
     --text:#E8ECF1; --muted:#8A93A0; --line:#232B34;
   }
-  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent; touch-action:pan-x pan-y}
   html,body{margin:0; padding:0; background:var(--bg); color:var(--text);
     font-family:system-ui,-apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
-    height:100%; overscroll-behavior:none; overflow:hidden}
+    height:100%; overscroll-behavior:none; overflow:hidden; touch-action:pan-x pan-y}
   body{display:flex; flex-direction:column; align-items:center; height:100dvh}
   .wrap{width:100%; max-width:460px; height:100%; padding:10px 12px calc(10px + env(safe-area-inset-bottom));
     display:flex; flex-direction:column; gap:8px}
@@ -96,6 +96,14 @@
 <script>
 (function(){
   'use strict';
+
+  // Belt-and-suspenders pinch-zoom blocker: the viewport meta and touch-action
+  // CSS aren't honored for zoom gestures on every browser.
+  document.addEventListener('touchmove', function(e){
+    if(e.touches && e.touches.length > 1) e.preventDefault();
+  }, {passive:false});
+  document.addEventListener('gesturestart', function(e){ e.preventDefault(); });
+
   var BRAND = 'Gotcha Bot';
 
   var ICONS = {
@@ -117,7 +125,7 @@
       running: 'AI xuất phát! Bạn vẫn đặt thêm bẫy được khi nó đang chạy. Chạm nút để tạm dừng.',
       memCell: 'AI đã "thuộc" ô này — đặt bẫy ở đó là vô ích.',
       noTraps: 'Hết bẫy! Sống sót qua vòng này để nhận thêm 2 cái.',
-      died: function(r){ return ' (Vòng '+r+': nhanh hơn, thính hơn. +2 bẫy cho bạn. Tự động tiếp tục sau 3s — chạm nút để tạm dừng.)'; },
+      died: function(r){ return ' (Vòng '+r+': nhanh hơn, thính hơn. +2 bẫy cho bạn. Tự động tiếp tục sau 2s — chạm nút để tạm dừng.)'; },
       overNewBest: function(k){ return 'AI về đích! Nhưng bạn vừa lập kỷ lục mới: cầm cự '+k+' vòng. Bấm nút ↻ để chơi lại.'; },
       over: function(r){ return 'AI về đích sau '+r+' vòng — nó khôn hơn bạn rồi. Bấm nút ↻ để phục thù.'; },
       cellStart: 'ĐI', cellGoal: 'ĐÍCH',
@@ -147,7 +155,7 @@
       running: 'The AI is on the move! You can still drop traps while it runs. Tap the button to pause.',
       memCell: 'The AI memorized this cell — trapping it again is pointless.',
       noTraps: 'Out of traps! Survive this round to earn 2 more.',
-      died: function(r){ return ' (Round '+r+': faster, sharper. +2 traps for you. Auto-continuing in 3s — tap to pause.)'; },
+      died: function(r){ return ' (Round '+r+': faster, sharper. +2 traps for you. Auto-continuing in 2s — tap to pause.)'; },
       overNewBest: function(k){ return 'The AI made it! But that\'s a new personal best: '+k+' rounds. Tap ↻ to beat it.'; },
       over: function(r){ return 'The AI reached the goal after '+r+' rounds — it officially outsmarted you. Tap ↻ for revenge.'; },
       cellStart: 'GO', cellGoal: 'GOAL',
@@ -177,7 +185,7 @@
       running: 'AI出发了！它移动时你仍然可以放陷阱。点击按钮可暂停。',
       memCell: 'AI已经记住了这个格子——再放陷阱没有用。',
       noTraps: '陷阱用完了！撑过这一回合可以再得2个。',
-      died: function(r){ return '（第'+r+'回合：更快、更敏锐。你获得2个陷阱。3秒后自动继续——点击可暂停。）'; },
+      died: function(r){ return '（第'+r+'回合：更快、更敏锐。你获得2个陷阱。2秒后自动继续——点击可暂停。）'; },
       overNewBest: function(k){ return 'AI到达终点了！不过你刷新了纪录：坚持了'+k+'回合。点↻再来一局。'; },
       over: function(r){ return 'AI在第'+r+'回合到达终点——它比你聪明了。点↻报仇吧。'; },
       cellStart: '出发', cellGoal: '终点',
@@ -383,7 +391,7 @@
   }
   function scheduleAutoContinue(){
     clearAutoContinue();
-    autoCountdown = 3;
+    autoCountdown = 2;
     autoInterval = setInterval(function(){
       autoCountdown--;
       if(autoCountdown<=0){
